@@ -922,6 +922,33 @@
     return s;
 }
 
+- (NSString *)preprocessLine:(NSString *)line command:(NSString*)command channel:(IRCChannel*)channel
+{
+    static BOOL loadedScript = NO;
+    static NSString *script = nil;
+    if (!loadedScript) {
+        NSString *inputPluginPath = [@"~/Library/Application Support/LimeChat/inputPlugin.js" stringByExpandingTildeInPath];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:inputPluginPath]) {
+            script = [NSString stringWithContentsOfFile:inputPluginPath encoding:NSUTF8StringEncoding error:nil];
+        }
+        
+        if (script) {
+            [[world.consoleLog.view windowScriptObject] evaluateWebScript:script];
+        }
+        
+        loadedScript = YES;
+    }
+    
+    if (script) {
+        id res = [[world.consoleLog.view windowScriptObject] callWebScriptMethod:@"handleInput"
+                                                                   withArguments:[NSArray arrayWithObjects:line, command, channel.name, nil]];
+        if (res) {
+            return res;
+        }
+    }
+    return line;
+}
+
 - (void)sendText:(NSString*)str command:(NSString*)command channel:(IRCChannel*)channel
 {
     if (!str.length) return;
@@ -941,6 +968,8 @@
     for (NSString* line in lines) {
         if (!line.length) continue;
 
+        line = [self preprocessLine:line command:command channel:channel];
+        
         NSMutableString* s = [[line mutableCopy] autorelease];
 
         while (s.length > 0) {
